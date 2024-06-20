@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.27)
 
 project(Client VERSION 0.1 LANGUAGES CXX)
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Network)
 
 qt_standard_project_setup()
 
@@ -10,6 +10,8 @@ qt_add_executable(Client
     mainwindow.h mainwindow.cpp
     mainwindow.ui
     main.cpp
+    Client.qrc
+    userinfo.h userinfo.cpp
 )
 
 target_compile_features(Client PRIVATE cxx_std_20)
@@ -17,6 +19,7 @@ target_compile_features(Client PRIVATE cxx_std_20)
 target_link_libraries(Client 
     PRIVATE 
         Qt6::Widgets
+        Qt6::Network
 )
 
 set_target_properties(Client PROPERTIES
