@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.27)
+cmake_minimum_required(VERSION 3.26)
 
 project(Client VERSION 0.1 LANGUAGES CXX)
 
@@ -15,6 +15,9 @@ qt_add_executable(Client
     home.h home.cpp home.ui
     registerdialog.h registerdialog.cpp registerdialog.ui
     client.ui
+    chatdialog.h
+    chatdialog.cpp
+    chatdialog.ui
 
 
 )

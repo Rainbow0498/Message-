@@ -199,7 +199,56 @@ void home::on_pushButton_quit_clicked()
 }
 
 void home::on_pushButton_sendmessage_clicked()
-{
+{//发信息
+    if(ui->lineEdit_sendname->text()!="" && ui->lineEdit_sendname->text()!=user.name)
+    {//发送人名不为空,且不能给自己发送消息
+
+        tcpSocket->abort();//取消已有链接
+        tcpSocket->connectToHost(hostip, hosthost);//链接服务器
+        if(!tcpSocket->waitForConnected(30000))
+        {
+            QMessageBox::warning(this, "Warning!", "网络错误", QMessageBox::Yes);
+            user.islogin = false;
+            client *cli = new client();
+            cli->show();
+        }
+        else
+        {//服务器连接成功
+            QString message = QString("wantsendmessage##%1##%2").arg(user.id).arg(ui->lineEdit_sendname->text());
+            tcpSocket->write(message.toUtf8());
+            tcpSocket->flush();
+
+            connect(tcpSocket,&QTcpSocket::readyRead,[=](){
+                QByteArray buffer = tcpSocket->readAll();
+                if( QString(buffer).section("##",0,0) == QString("wantsendmessage_ok"))
+                {//查有此人，可以发消息
+                    otheruser.id = QString(buffer).section("##",1,1).toInt();
+                    otheruser.name = ui->lineEdit_sendname->text();
+                    ui->lineEdit_sendname->clear();
+                    chatdialog *cht = new chatdialog();
+                    cht->show();
+                }
+                else if( QString(buffer).section("##",0,0) == QString("wantsendmessage_error"))
+                {
+                    QMessageBox::warning(this, "Warning!", "查无此人", QMessageBox::Yes);
+                    ui->lineEdit_sendname->clear();
+                    ui->lineEdit_sendname->setFocus();
+                }
+            });
+        }
+    }
+    else if(ui->lineEdit_sendname->text()==user.name)
+    {
+        QMessageBox::warning(this, "Warning!", "不能给自己发消息", QMessageBox::Yes);
+        ui->lineEdit_sendname->clear();
+        ui->lineEdit_sendname->setFocus();
+    }
+    else
+    {
+        QMessageBox::warning(this, "Warning!", "用户名不为空", QMessageBox::Yes);
+        ui->lineEdit_sendname->clear();
+        ui->lineEdit_sendname->setFocus();
+    }
 
 }
 

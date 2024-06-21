@@ -60,6 +60,36 @@ server::server(QWidget *parent)
                 log("register");
                 registerIn();
             }
+            else if("wantsendmessage" == QString(buffer).section("##",0,0))
+            {//想发信息，校验有没有这个人
+                log("wantsendmessage");
+                wantsendmessage();
+            }
+            else if("chat_history" == QString(buffer).section("##",0,0))
+            {
+
+                chat_history();
+            }
+            else if("chat_send" == QString(buffer).section("##",0,0))
+            {
+                log("chat_send");
+                chat_send();
+            }
+            else if("getfriendlist" == QString(buffer).section("##",0,0))
+            {
+
+                getfriendlist();
+            }
+            else if("add_friend" == QString(buffer).section("##",0,0))
+            {
+                log("add_friend");
+                add_friend();
+            }
+            else if("delete_friend" == QString(buffer).section("##",0,0))
+            {
+                log("delete_friend");
+                delete_friend();
+            }
         });
      });
 }
@@ -175,6 +205,295 @@ void server::registerIn(){
     else
     {//有重名
         tcpSocket[0]->write(QString("register error##same_name").toUtf8());
+        tcpSocket[0]->flush();
+        db.close();
+    }
+}
+void server::wantsendmessage(){
+    //想发信息，校验有没有这个人
+    db.setDatabaseName("./people.db");
+    db.open();
+    QSqlQuery sqlquery;
+    sqlquery.prepare("select * from people where name = :name");
+    sqlquery.bindValue(":name",QString(buffer).section("##",2,2));
+    sqlquery.exec();
+    if(sqlquery.next())
+    {//有这个人在，可以发消息
+        int otherid = sqlquery.value(0).toInt();
+        tcpSocket[0]->write(QString("wantsendmessage_ok##%1").arg(otherid).toUtf8());
+        tcpSocket[0]->flush();
+
+        //发消息前把数据库准备好
+        int thisid = QString(buffer).section("##",1,1).toInt();
+        if(thisid < otherid)
+        {
+            sqlquery.exec("CREATE TABLE if not exists chat__" + QString::number(thisid) + "__" + QString::number(otherid) + "(time datetime NOT NULL UNIQUE,id INTEGER,ip TEXT,message TEXT, PRIMARY KEY(time))");
+        }
+        else
+        {
+            sqlquery.exec("CREATE TABLE if not exists chat__" + QString::number(otherid) + "__" + QString::number(thisid) + "(time datetime NOT NULL UNIQUE,id INTEGER,ip TEXT,message TEXT, PRIMARY KEY(time))");
+        }
+
+
+        db.close();
+    }
+    else
+    {//查无此人，无法对话
+        tcpSocket[0]->write(QString("wantsendmessage_error").toUtf8());
+        tcpSocket[0]->flush();
+        db.close();
+    }
+}
+void server::chat_history(){
+    //idone是发信息的，idtwo是收信息的，所以one已经阅览了two的所有消息
+    int idone = QString(buffer).section("##",1,1).toInt();
+    int idtwo = QString(buffer).section("##",2,2).toInt();
+    db.setDatabaseName("./people.db");
+    db.open();
+    QSqlQuery sqlquery;
+    QString sqlstring = "";
+    if(idone < idtwo)
+    {
+        sqlstring = "select * from chat__" + QString::number(idone) + "__" + QString::number(idtwo) + " order by time desc limit 20";
+    }
+    else
+    {
+        sqlstring = "select * from chat__" + QString::number(idtwo) + "__" + QString::number(idone) + " order by time desc limit 20";
+    }
+    qDebug()<<sqlstring;
+    sqlquery.exec(sqlstring);
+
+    if(sqlquery.next())
+    {
+        QString history = "##" + sqlquery.value(0).toDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz")+ "##" + sqlquery.value(1).toString()+ "##" + sqlquery.value(2).toString()+"##"+sqlquery.value(3).toString();
+        int hisnum = 1;
+        while(sqlquery.next())
+        {
+            hisnum++;
+            QDateTime time = sqlquery.value(0).toDateTime();
+            QString timestr = time.toString("yyyy-MM-dd hh:mm:ss.zzz");
+            history = history + "##" + timestr;//时间
+            history = history + "##" + sqlquery.value(1).toString();//谁发的
+            history = history + "##" + sqlquery.value(2).toString();//发送者ip
+            history = history + "##" + sqlquery.value(3).toString();//内容
+        }
+        history = "chat_history_ok##" + QString::number(hisnum) + history;
+        tcpSocket[0]->write(history.toUtf8());
+        tcpSocket[0]->flush();
+
+        QString sqlstring = "update friend__" + QString::number(idone) + " set sendmassage = 0 where id = :id";
+        db.setDatabaseName("./people.db");
+        db.open();
+        QSqlQuery sqlquery;
+        sqlquery.prepare(sqlstring);
+        sqlquery.bindValue(":id", idtwo);
+        sqlquery.exec();
+        db.close();
+    }
+    else
+    {//无历史记录
+        tcpSocket[0]->write(QString("chat_history_error").toUtf8());
+        tcpSocket[0]->flush();
+        db.close();
+    }
+}
+void server::chat_send(){
+    //one发消息的，two收消息的
+    QDateTime nowstr = QDateTime::fromString(QString(buffer).section("##",1,1), "yyyy-MM-dd hh:mm:ss.zzz");
+    int idone = QString(buffer).section("##",2,2).toInt();
+    int idtwo = QString(buffer).section("##",3,3).toInt();
+    QString ip =QString(buffer).section("##",4,4);
+    db.setDatabaseName("./people.db");
+    db.open();
+    QSqlQuery sqlquery;
+    QString sqlstring = "";
+    if(idone < idtwo)
+    {
+        sqlstring = "insert into chat__" + QString::number(idone) + "__" + QString::number(idtwo) + " values(:time,:id,:ip,:message)";
+    }
+    else
+    {
+        sqlstring = "insert into chat__" + QString::number(idtwo) + "__" + QString::number(idone) + " values(:time,:id,:ip,:message)";
+    }
+    qDebug()<<sqlstring;
+    sqlquery.prepare(sqlstring);
+    sqlquery.bindValue(":time",nowstr);
+    sqlquery.bindValue(":id",idone);
+    sqlquery.bindValue(":ip",ip);
+    sqlquery.bindValue(":message",QString(buffer).section("##",5,5));
+    sqlquery.exec();
+
+    sqlstring = "update friend__" + QString::number(idtwo) + " set sendmassage = 1 where id = :id";
+    db.setDatabaseName("./people.db");
+    db.open();
+    sqlquery.clear();
+    sqlquery.prepare(sqlstring);
+    sqlquery.bindValue(":id", idone);
+    sqlquery.exec();
+    db.close();
+}
+void server::logout(){
+    db.setDatabaseName("./people.db");
+    db.open();
+    QSqlQuery sqlquery;
+    sqlquery.prepare("update people set islogin=0 where id = :id");
+    sqlquery.bindValue(":id",QString(buffer).section("##",1,1));
+    sqlquery.exec();
+
+    //更新服务器界面
+    ui->listWidget->clear();
+    sqlquery.prepare("select * from people where islogin = 1");
+    sqlquery.exec();
+    if(sqlquery.next())
+    {
+        QString userid = sqlquery.value(0).toString();
+        QString username = sqlquery.value(1).toString();
+        QString userip = sqlquery.value(3).toString();
+        //qDebug()<<userid;
+        ui->listWidget->insertItem(0,"用户ID："+userid+",用户昵称:"+username+",用户IP:"+userip);
+        int rownum = 1;
+        while (sqlquery.next())
+        {
+            QString userid = sqlquery.value(0).toString();
+            QString username = sqlquery.value(1).toString();
+            QString userip = sqlquery.value(3).toString();
+            ui->listWidget->insertItem(rownum,"用户ID："+userid+",用户昵称:"+username+",用户IP:"+userip);
+            rownum++;
+        }
+    }
+    else
+    {
+        ui->listWidget->clear();
+        ui->listWidget->insertItem(0,tr("当前无在线用户"));
+    }
+}
+void server::getfriendlist(){
+    db.setDatabaseName("./people.db");
+    db.open();
+    QSqlQuery sqlquery;
+    sqlquery.exec("select * from friend__" + QString(buffer).section("##",1,1) + " desc");
+
+    if(sqlquery.next())
+    {
+        QList <QString> friendlist;
+        QList <QString> friendsendfilelist;
+        QList <QString> friendsendmassagelist;
+        friendlist.append(sqlquery.value(1).toString());
+
+        int sendmassagenum = 0;
+        if(sqlquery.value(2).toString() == '1')
+        {
+            sendmassagenum++;
+        }
+        friendsendmassagelist.append(sqlquery.value(2).toString());
+        int sendfilenum = 0;
+        if(sqlquery.value(3).toString() == '1')
+        {
+            sendfilenum++;
+        }
+        friendsendfilelist.append(sqlquery.value(3).toString());
+
+        QString friends = "";
+        while(sqlquery.next())
+        {
+            friendlist.append(sqlquery.value(1).toString());
+            if(sqlquery.value(2).toString() == '1')
+            {
+                sendmassagenum++;
+            }
+            friendsendmassagelist.append(sqlquery.value(2).toString());
+            if(sqlquery.value(3).toString() == '1')
+            {
+                sendfilenum++;
+            }
+            friendsendfilelist.append(sqlquery.value(3).toString());
+        }
+
+        int onlinefriendnum = 0;
+        for( int i = 0; i < friendlist.length(); i++)
+        {
+            sqlquery.prepare("select * from people where name = :name");
+            sqlquery.bindValue(":name",friendlist.at(i));
+            sqlquery.exec();
+            sqlquery.next();
+            QString peopleip = sqlquery.value(3).toString();
+            if(sqlquery.value(4).toInt() == 1)
+            {
+                onlinefriendnum++;
+                friends = "##" + friendlist.at(i) + "##1##" + peopleip +"##"+friendsendmassagelist.at(i)+"##"+ friendsendfilelist.at(i)+ friends;
+            }
+            else
+            {
+                friends = "##" + friendlist.at(i) + "##0##" + peopleip +"##"+friendsendmassagelist.at(i)+"##"+ friendsendfilelist.at(i)+ friends;
+            }
+        }
+        friends = "getfriendlist_ok##" + QString::number(friendlist.length()) +"##"+QString::number(onlinefriendnum)+"##"+QString::number(sendmassagenum)+"##"+QString::number(sendfilenum)+ friends;
+        qDebug()<<friends;
+        tcpSocket[0]->write(friends.toUtf8());
+        tcpSocket[0]->flush();
+        db.close();
+    }
+    else
+    {//无朋友
+        tcpSocket[0]->write(QString("getfriendlist_error").toUtf8());
+        tcpSocket[0]->flush();
+        db.close();
+    }
+}
+void server::add_friend(){
+    int whowantadd_id = QString(buffer).section("##",1,1).toInt();
+    QString friend_name = QString(buffer).section("##",2,2);
+
+    qDebug() << whowantadd_id << friend_name;
+
+    db.setDatabaseName("./people.db");
+    db.open();
+    QSqlQuery sqlquery;
+    sqlquery.prepare("select * from people where name = :name");
+    sqlquery.bindValue(":name",friend_name);
+    sqlquery.exec();
+    if(sqlquery.next())
+    {
+        int friend_id = sqlquery.value(0).toInt();
+        qDebug() <<friend_id;
+        sqlquery.clear();
+        QString sqlstring = "insert into friend__" + QString::number(whowantadd_id) + " values(:id,:name,0,0)";
+        qDebug()<<sqlstring;
+        sqlquery.prepare(sqlstring);
+        sqlquery.bindValue(":id",friend_id);
+        sqlquery.bindValue(":name",friend_name);
+        sqlquery.exec();
+        qDebug()<<sqlquery.lastError();
+        tcpSocket[0]->write(QString("add_friend_ok").toUtf8());
+        tcpSocket[0]->flush();
+        db.close();
+    }
+    else
+    {//没这人
+        qDebug() <<"e";
+        tcpSocket[0]->write(QString("add_friend_error").toUtf8());
+        tcpSocket[0]->flush();
+        db.close();
+    }
+}
+void server::delete_friend(){
+    int whowantdelete_id = QString(buffer).section("##",1,1).toInt();
+    QString friend_name = QString(buffer).section("##",2,2);
+
+    db.setDatabaseName("./people.db");
+    db.open();
+    QSqlQuery sqlquery;
+    sqlquery.prepare("delete from friend__"+QString::number(whowantdelete_id)+" where name = :name");
+    sqlquery.bindValue(":name",friend_name);
+    if(sqlquery.exec())
+    {
+        tcpSocket[0]->write(QString("delete_friend_ok").toUtf8());
+        tcpSocket[0]->flush();
+        db.close();
+    }
+    else
+    {
+        tcpSocket[0]->write(QString("delete_friend_error").toUtf8());
         tcpSocket[0]->flush();
         db.close();
     }
