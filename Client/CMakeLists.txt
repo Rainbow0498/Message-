@@ -5,13 +5,18 @@ project(Client VERSION 0.1 LANGUAGES CXX)
 find_package(Qt6 REQUIRED COMPONENTS Widgets Network)
 
 qt_standard_project_setup()
-
+set(CMAKE_AUTORCC ON)
 qt_add_executable(Client
-    mainwindow.h mainwindow.cpp
-    mainwindow.ui
     main.cpp
     Client.qrc
     userinfo.h userinfo.cpp
+
+    client.h client.cpp
+    home.h home.cpp home.ui
+    registerdialog.h registerdialog.cpp registerdialog.ui
+    client.ui
+
+
 )
 
 target_compile_features(Client PRIVATE cxx_std_20)
@@ -39,6 +44,7 @@ install(TARGETS Client
 )
 
 qt_finalize_executable(Client)
+
 
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET Client APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
