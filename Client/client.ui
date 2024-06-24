@@ -177,9 +177,6 @@ border-radius: 20px;
       <string notr="true">
 background:transparent;border-width:0;border-style:outset</string>
      </property>
-     <property name="inputMethodHints">
-      <set>Qt::ImhHiddenText|Qt::ImhNoAutoUppercase|Qt::ImhNoPredictiveText|Qt::ImhSensitiveData</set>
-     </property>
     </widget>
     <widget class="QLineEdit" name="lineEdit_username">
      <property name="geometry">

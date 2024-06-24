@@ -90,39 +90,17 @@ server::server(QWidget *parent)
                 log("delete_friend");
                 delete_friend();
             }
-            else if("want_send_file" == QString(buffer).section("##",0,0))
-            {
-                 log("want_send_file");
-                want_send_file();
-            }
-            else if("send_file_ok" == QString(buffer).section("##",0,0))
-            {//1给2发,1是id,2是name;在2的表中显示1的信息
-                log("send_file_ok");
-                send_file_ok();
-            }
-            else if("send_file_miss" == QString(buffer).section("##",0,0))
-            {
-                log("send_file_miss");
-                send_file_miss();
-            }
         });
-    });
+     });
 }
-void server::log(const QString &message){
-    QDateTime currentTime = QDateTime::currentDateTime();
-    QString s = QString(buffer).section("##",1,1);
-    s=s+" : "+message;
-    QString logMessage = QString("(%1) %2").arg(currentTime.toString("MM-dd hh:mm:ss")).arg(s);
-    QString currentText = ui->textEditOut->toPlainText();
-    currentText += "\n" + logMessage;
-    ui->textEditOut->setText(currentText);
-}
+
 server::~server()
 {
     tcpServer->close();
     tcpServer->deleteLater();
     delete ui;
 }
+
 void server::login(){
     db.setDatabaseName("./people.db");
     db.open();
@@ -519,51 +497,4 @@ void server::delete_friend(){
         tcpSocket[0]->flush();
         db.close();
     }
-}
-void server::want_send_file(){
-    int userid = QString(buffer).section("##",1,1).toInt();
-    qDebug()<<buffer;
-    db.setDatabaseName("./people.db");
-    db.open();
-    QSqlQuery sqlquery;
-    sqlquery.prepare("select * from people where name = :name");
-    sqlquery.bindValue(":name",QString(buffer).section("##",2,2));
-    sqlquery.exec();
-    sqlquery.next();
-    int otheruserid = sqlquery.value(0).toInt();
-
-    QString sqlstring = "update friend__" + QString::number(otheruserid) + " set sendfile = 1 where id = :id";
-    sqlquery.prepare(sqlstring);
-    sqlquery.bindValue(":id",userid);
-    sqlquery.exec();
-}
-void server::send_file_ok(){
-    //1给2发,1是id,2是name;在2的表中显示1的信息
-    int userid = QString(buffer).section("##",1,1).toInt();
-    qDebug()<<buffer;
-    QString sqlstring = "update friend__" + QString::number(userid) + " set sendfile = 0 where name = :name";
-    qDebug()<<sqlstring;
-    db.setDatabaseName("./people.db");
-    db.open();
-    QSqlQuery sqlquery;
-    sqlquery.prepare(sqlstring);
-    sqlquery.bindValue(":name", QString(buffer).section("##",2,2));
-    sqlquery.exec();
-}
-void server::send_file_miss(){
-    int userid = QString(buffer).section("##",1,1).toInt();
-    qDebug()<<buffer;
-    db.setDatabaseName("./people.db");
-    db.open();
-    QSqlQuery sqlquery;
-    sqlquery.prepare("select * from people where name = :name");
-    sqlquery.bindValue(":name",QString(buffer).section("##",2,2));
-    sqlquery.exec();
-    sqlquery.next();
-    int otheruserid = sqlquery.value(0).toInt();
-
-    QString sqlstring = "update friend__" + QString::number(otheruserid) + " set sendfile = 0 where id = :id";
-    sqlquery.prepare(sqlstring);
-    sqlquery.bindValue(":id",userid);
-    sqlquery.exec();
 }

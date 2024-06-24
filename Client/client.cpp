@@ -8,7 +8,6 @@
 #include "home.h"
 #include <QPainter>
 #include <QPoint>
-
 extern userinfo user;
 extern QString hostip;
 extern int hosthost;

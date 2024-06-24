@@ -18,8 +18,6 @@ qt_add_executable(Client
     chatdialog.h
     chatdialog.cpp
     chatdialog.ui
-    receivefiledialog.h receivefiledialog.cpp receivefiledialog.ui
-    sendfiledialog.h sendfiledialog.cpp sendfiledialog.ui
 
 
 )
