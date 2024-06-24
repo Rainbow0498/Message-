@@ -37,7 +37,7 @@
      </rect>
     </property>
    </widget>
-   <widget class="QTextEdit" name="textEdit">
+   <widget class="QTextEdit" name="textEditOut">
     <property name="geometry">
      <rect>
       <x>570</x>

@@ -1,5 +1,6 @@
 //Arthor:YangYunbo   DuJiangxin
 //Date:2024.6.20 2024.6.21
+
 #include "QMessageBox"
 #include "home.h"
 #include "ui_home.h"
@@ -7,7 +8,9 @@
 #include "client.h"
 #include "QtNetwork"
 #include "qinputdialog.h"
-
+#include "chatdialog.h"
+#include "sendfiledialog.h"
+#include "receivefiledialog.h"
 
 extern userinfo user;
 userinfo otheruser;
@@ -190,14 +193,6 @@ void home::Createdfriendlist()
     }
 }
 
-void home::on_pushButton_quit_clicked()
-{//退出登录
-    this->close();
-    user.islogin = false;
-    client *cli = new client();
-    cli->show();
-}
-
 void home::on_pushButton_sendmessage_clicked()
 {//发信息
     if(ui->lineEdit_sendname->text()!="" && ui->lineEdit_sendname->text()!=user.name)
@@ -249,7 +244,14 @@ void home::on_pushButton_sendmessage_clicked()
         ui->lineEdit_sendname->clear();
         ui->lineEdit_sendname->setFocus();
     }
+}
 
+void home::on_pushButton_quit_clicked()
+{//退出登录
+    this->close();
+    user.islogin = false;
+    client *cli = new client();
+    cli->show();
 }
 
 void home::on_pushButton_addpeople_clicked()
@@ -298,9 +300,47 @@ void home::on_pushButton_addpeople_clicked()
     }
 }
 
+
 void home::on_pushButton_startchat_clicked()
 {
+    if(ui->listWidget->currentRow()!=-1)
+    {
+        QString friendname = friendlist.at(ui->listWidget->currentRow());
 
+        tcpSocket = new QTcpSocket();
+        tcpSocket->abort();//取消已有链接
+        tcpSocket->connectToHost(hostip, hosthost);//链接服务器
+        if(!tcpSocket->waitForConnected(30000))
+        {
+            QMessageBox::warning(this, "Warning!", "网络错误", QMessageBox::Yes);
+            this->close();
+            user.islogin = false;
+            client *cli = new client();
+            cli->show();
+        }
+        else
+        {//服务器连接成功
+            QString message = QString("wantsendmessage##%1##%2").arg(user.id).arg(friendname);
+            tcpSocket->write(message.toUtf8());
+            tcpSocket->flush();
+
+            connect(tcpSocket,&QTcpSocket::readyRead,[=](){
+                QByteArray buffer = tcpSocket->readAll();
+                if( QString(buffer).section("##",0,0) == QString("wantsendmessage_ok"))
+                {//查有此人，可以发消息
+                    otheruser.id = QString(buffer).section("##",1,1).toInt();
+                    otheruser.name = friendname;
+                    ui->pushButton_startchat->setEnabled(false);
+                    chatdialog *cht = new chatdialog();
+                    cht->show();
+                }
+            });
+        }
+    }
+    else
+    {
+        QMessageBox::warning(this, "Warning!", "您未选择联系人", QMessageBox::Yes);
+    }
 }
 
 void home::on_pushButton_deletepeople_clicked()
@@ -351,12 +391,67 @@ void home::on_pushButton_deletepeople_clicked()
 
 void home::on_pushButton_sendfile_clicked()
 {
+    if( ui->listWidget->currentRow() != -1)
+    {
+        if(friendstatuelist.at(ui->listWidget->currentRow()) == "1")
+        {
+            QString friendname = friendlist.at(ui->listWidget->currentRow());
+            qDebug() << friendname;
+            otheruser.name = friendname;
+            otheruser.ip = friendiplist.at(ui->listWidget->currentRow());
 
+            tcpSocket = new QTcpSocket();
+            tcpSocket->abort();//取消已有链接
+            tcpSocket->connectToHost(hostip, hosthost);//链接服务器
+            if(!tcpSocket->waitForConnected(30000))
+            {
+                QMessageBox::warning(this, "Warning!", "网络错误", QMessageBox::Yes);
+                this->close();
+                user.islogin = false;
+                client *cli = new client();
+                cli->show();
+            }
+            else
+            {//服务器连接成功
+                QString message = QString("want_send_file##%1##%2").arg(user.id).arg(friendname);
+                tcpSocket->write(message.toUtf8());
+                tcpSocket->flush();
+            }
+            sendfiledialog *sf = new sendfiledialog();
+            sf->show();
+        }
+        else
+        {
+            QMessageBox::warning(this, "Warning!", "联系人未在线无法发送文件", QMessageBox::Yes);
+        }
+    }
+    else
+    {
+        QMessageBox::warning(this, "Warning!", "您未选择联系人", QMessageBox::Yes);
+    }
 }
 
 void home::on_pushButton_receivefile_clicked()
 {
-
+    if( ui->listWidget->currentRow() != -1)
+    {
+        if(friendsendfilelist.at(ui->listWidget->currentRow()) == "1")
+        {
+            QString friendname = friendlist.at(ui->listWidget->currentRow());
+            otheruser.name = friendname;
+            otheruser.ip = friendiplist.at(ui->listWidget->currentRow());
+            receivefiledialog *rf = new receivefiledialog();
+            rf->show();
+        }
+        else
+        {
+            QMessageBox::warning(this, "Warning!", "该联系人未给您发送文件", QMessageBox::Yes);
+        }
+    }
+    else
+    {
+        QMessageBox::warning(this, "Warning!", "您未选择联系人", QMessageBox::Yes);
+    }
 }
 
 void home::closeEvent(QCloseEvent *event)
@@ -418,4 +513,6 @@ void home::on_pushButton_clicked()
 {
     this -> close();
 }
+
+
 
